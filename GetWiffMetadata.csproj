@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <Reference Include="pwiz_bindings_cli">
-      <HintPath>..\..\..\..\..\PwizDeploy\pwiz_bindings_cli.dll</HintPath>
+      <HintPath>..\..\..\..\..\..\PwizDeploy\pwiz_bindings_cli.dll</HintPath>
     </Reference>
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
