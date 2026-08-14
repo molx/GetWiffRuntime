@@ -1,6 +1,6 @@
 # WIFF Metadata Extractor
 
-A C# console application that recursively scans directories for SCIEX `.wiff` files and extracts the sample names, run durations (in minutes), file creation dates, and directory paths. The software allows filtering by a specific year, processes files concurrently for maximum speed, and automatically exports the results to a `.csv` file.
+A high-performance WPF desktop application that recursively scans directories for SCIEX `.wiff` files and extracts sample names, run durations (in minutes), file creation dates, and directory paths. The software can process files concurrently for maximum speed to mitigate I/O bottlenecks and automatically exports the results to a `.csv` file alongside a calculation of the total LC run time.
 
 Built with ProteoWizard Version: 3.0.24121-ce45d8c (automated build)
 
@@ -24,10 +24,9 @@ Due to the complex native C++ dependencies required by ProteoWizard's `.NET` bin
 ## How to Use
 
 1. Execute the compiled `.exe` file.
-2. The console will prompt: `Please enter the full path to the folder containing the .wiff files (or press Enter to exit):`
-3. Paste the full directory path containing your `.wiff` and `.wiff.scan` files and press **Enter**.
-4. The console will then prompt: `Please enter the target year (e.g., 2026), or 0 for all years:`
-5. Type your desired year to filter the search, or `0` to process everything, and press **Enter**.
-6. The software will scan the specified folder and all subdirectories, reading the metadata from the matching files using multiple CPU cores.
-7. The extracted table will be printed to the console, and a summary file (`RunSummary_<Year>.csv` or `RunSummary.csv`) will be generated in the root of the provided folder.
-8. The application will remain open, allowing you to seamlessly paste a new path and start another analysis.
+2. In the application window, input the full directory path containing your `.wiff` and `.wiff.scan` files.
+3. Input your desired target year to filter the search (e.g., 2026), or use `0` to process all years.
+4. Start the extraction. The software will securely scan the specified folder and all subdirectories using multiple CPU cores.
+5. You can monitor the real-time extraction progress, including successfully parsed samples and skipped files (due to missing `.scan` companions), in the dark-themed UI log.
+6. Upon completion, the interface will display the **Total LC Run Time** for all processed files.
+7. A summary file (`RunSummary_<Year>.csv` or `RunSummary.csv`) will be generated automatically in the root of the provided folder.

@@ -1,18 +1,33 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>net48</TargetFramework>
     <Platforms>AnyCPU;x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
-    <OutputPath>C:\PwizDeploy\core\</OutputPath>
+    <OutputPath>C:\PwizDeploy\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Resources\gemini-svg.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\gemini-svg.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Include="App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="pwiz_bindings_cli">
-      <HintPath>..\..\..\..\..\PwizDeploy\core\pwiz_bindings_cli.dll</HintPath>
+      <HintPath>..\..\..\..\..\PwizDeploy\pwiz_bindings_cli.dll</HintPath>
     </Reference>
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
 </Project>
