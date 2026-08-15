@@ -9,6 +9,8 @@ using pwiz.CLI.cv;
 
 namespace WiffReader {
     public partial class MainWindow : Window {
+
+        private System.Collections.Generic.Queue<string> uiLogQueue = new System.Collections.Generic.Queue<string>(200);
         public MainWindow() {
             InitializeComponent();
         }
@@ -36,10 +38,17 @@ namespace WiffReader {
             btnStart.IsEnabled = false;
             chkMultiThread.IsEnabled = false;
             btnBrowse.IsEnabled = false;
+            uiLogQueue.Clear();
             txtLog.Clear();
 
-            var progress = new Progress<string>(msg => {
-                txtLog.AppendText(msg + Environment.NewLine);
+            var progress = new Progress<string>(message => {
+                if (uiLogQueue.Count >= 100) {
+                    uiLogQueue.Dequeue();
+                }
+
+                uiLogQueue.Enqueue(message);
+
+                txtLog.Text = string.Join(Environment.NewLine, uiLogQueue);
                 txtLog.ScrollToEnd();
             });
 
@@ -59,7 +68,7 @@ namespace WiffReader {
                     progress.Report(message);
 
                     lock (logLock) {
-                        File.AppendAllText(logFilePath, $"{DateTime.Now:HH:mm:ss} | {message}{Environment.NewLine}");
+                        File.AppendAllText(logFilePath, $"{DateTime.Now:HH:mm:ss} | {message}{Environment.NewLine}", new System.Text.UTF8Encoding(true));
                     }
                 };
 
@@ -75,15 +84,24 @@ namespace WiffReader {
                     ExtractionProgressBar.Value = 0;
                 });
 
-                var barProgress = new Progress<int>(value => {
+                long totalBytes = 0;
+                foreach (string f in wiffFiles) {
+                    totalBytes += new System.IO.FileInfo(f).Length;
+                }
+
+                var barProgress = new Progress<long>(reportedBytes => {
                     System.Windows.Application.Current.Dispatcher.Invoke(() => {
-                        ExtractionProgressBar.Value = value;
+                        double percentage = (double)reportedBytes / totalBytes * 100;
+                        ExtractionProgressBar.Value = percentage;
+
+                        string currentStr = reportedBytes >= 1073741824 ? $"{(double)reportedBytes / 1073741824:F2} GB" : $"{(double)reportedBytes / 1048576:F2} MB";
+                        string totalStr = totalBytes >= 1073741824 ? $"{(double)totalBytes / 1073741824:F2} GB" : $"{(double)totalBytes / 1048576:F2} MB";
+
+                        ProgressText.Text = $"{currentStr} / {totalStr} ({percentage:F0}%)";
                     });
                 });
 
-                int processedCount = 0;
-
-                string outputPath = Path.Combine(folderPath, targetYear == 0 ? "RunSummary.csv" : $"RunSummary_{targetYear}.csv");
+                string outputPath = Path.Combine(folderPath, targetYear == 0 ? $"RunSummary_{DateTime.Now:yyyyMMdd_HHmmss}.csv" : $"RunSummary_{targetYear}_{DateTime.Now:yyyyMMdd_HHmmss}.csv");
                 StringBuilder csvContent = new StringBuilder();
                 csvContent.AppendLine("\"File Name\",\"Sample Name\",\"Duration (min)\",\"Polarity\",\"Year\",\"Month\",\"Day\",\"Directory\"");
 
@@ -99,7 +117,11 @@ namespace WiffReader {
                 double totalRunTime = 0;
                 object timeLock = new object();
 
+                long processedBytes = 0;
+
                 Parallel.ForEach(wiffFiles, options, file => {
+                    long fileSizeBytes = new System.IO.FileInfo(file).Length;
+
                     try {
                         string scanFile = file + ".scan";
 
@@ -108,18 +130,13 @@ namespace WiffReader {
                             return;
                         }
 
-                        DateTime creationTime = File.GetCreationTime(file);
+                        string fileName = System.IO.Path.GetFileName(file);
+                        string directoryPath = System.IO.Path.GetDirectoryName(file);
+                        DateTime acquisitionTime = System.IO.File.GetLastWriteTime(file);
 
-                        if (targetYear != 0 && creationTime.Year != targetYear) {
+                        if (targetYear != 0 && acquisitionTime.Year != targetYear) {
                             return;
                         }
-
-                        string fileName = Path.GetFileName(file);
-                        string directoryPath = Path.GetDirectoryName(file);
-
-                        string year = creationTime.Year.ToString();
-                        string month = creationTime.Month.ToString("D2");
-                        string day = creationTime.Day.ToString("D2");
 
                         try {
                             using (var msDataList = new MSDataList()) {
@@ -127,8 +144,12 @@ namespace WiffReader {
 
                                 foreach (var msd in msDataList) {
                                     try {
+                                        string year = acquisitionTime.Year.ToString();
+                                        string month = acquisitionTime.Month.ToString("D2");
+                                        string day = acquisitionTime.Day.ToString("D2");
+
                                         string sampleName = msd.run.id;
-                                        string baseName = Path.GetFileNameWithoutExtension(file);
+                                        string baseName = System.IO.Path.GetFileNameWithoutExtension(file);
 
                                         if (sampleName.StartsWith(baseName + "-")) {
                                             sampleName = sampleName.Substring(baseName.Length + 1);
@@ -189,12 +210,12 @@ namespace WiffReader {
                                 }
                             }
                         } catch (System.Exception ex) {
-                            LogMessage($"SKIPPED FILE: Unreadable file {Path.GetFileName(file)} | {ex.Message}");
+                            LogMessage($"SKIPPED FILE: Unreadable file {System.IO.Path.GetFileName(file)} | {ex.Message}");
                             return;
                         }
                     } finally {
-                        int currentCount = System.Threading.Interlocked.Increment(ref processedCount);
-                        ((System.IProgress<int>)barProgress).Report(currentCount);
+                        long currentTotal = System.Threading.Interlocked.Add(ref processedBytes, fileSizeBytes);
+                        ((System.IProgress<long>)barProgress).Report(currentTotal);
                     }
                 });
 
@@ -211,17 +232,17 @@ namespace WiffReader {
                     csvContent.AppendLine(line);
                 }
 
-                File.WriteAllText(outputPath, csvContent.ToString());
+                File.WriteAllText(outputPath, csvContent.ToString(), new System.Text.UTF8Encoding(true));
                 LogMessage(new string('-', 60));
                 LogMessage($"Extraction Complete! Data saved to:\n{outputPath}");
             } catch (AggregateException ae) {
                 foreach (var innerEx in ae.Flatten().InnerExceptions) {
                     progress.Report($"CRITICAL ERROR: {innerEx.Message}");
                 }
-                File.AppendAllText(Path.Combine(folderPath, $"ExtractionLog_{DateTime.Now:yyyyMMdd_HHmmss}.txt"), $"CRITICAL ERROR: {ae.Message}{Environment.NewLine}");
+                File.AppendAllText(Path.Combine(folderPath, $"ExtractionLog_{DateTime.Now:yyyyMMdd_HHmmss}.txt"), $"CRITICAL ERROR: {ae.Message}{Environment.NewLine}", new System.Text.UTF8Encoding(true));
             } catch (Exception ex) {
                 progress.Report($"CRITICAL ERROR: {ex.Message}");
-                File.AppendAllText(Path.Combine(folderPath, $"ExtractionLog_{DateTime.Now:yyyyMMdd_HHmmss}.txt"), $"CRITICAL ERROR: {ex.Message}{Environment.NewLine}");
+                File.AppendAllText(Path.Combine(folderPath, $"ExtractionLog_{DateTime.Now:yyyyMMdd_HHmmss}.txt"), $"CRITICAL ERROR: {ex.Message}{Environment.NewLine}", new System.Text.UTF8Encoding(true));
             }
         }
     }
